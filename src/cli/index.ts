@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
+import * as Debug from 'debug';
 
 // assert supported node runtime version
 import * as runtime from './runtime';
@@ -16,9 +17,14 @@ import {isPathToPackageFile} from '../lib/detect';
 import {updateCheck} from '../lib/updater';
 import { MissingTargetFileError } from '../lib/errors/missing-targetfile-error';
 
+const debug = Debug('snyk');
+const EXIT_CODES = {
+  VULNS_FOUND: 1,
+  ERROR: 2,
+};
+
 async function runCommand(args) {
   const result = await args.method(...args.options._);
-
   const res = analytics({
     args: args.options._,
     command: args.command,
@@ -39,10 +45,12 @@ async function runCommand(args) {
 async function handleError(args, error) {
   spinner.clearAll();
   let command = 'bad-command';
+  let exitCode = EXIT_CODES.ERROR;
 
   if (error.code === 'VULNS') {
     // this isn't a bad command, so we won't record it as such
     command = args.command;
+    exitCode = EXIT_CODES.VULNS_FOUND;
   } else if (!error.stack) { // log errors that are not error objects
     analytics.add('error', JSON.stringify(error));
     analytics.add('command', args.command);
@@ -55,6 +63,10 @@ async function handleError(args, error) {
     if (error.message && error.message.vulnerabilities) {
       delete error.message.vulnerabilities;
     }
+    if (error.vulnerabilities) {
+      delete error.vulnerabilities;
+    }
+
     analytics.add('error-message', error.message);
     analytics.add('error', error.stack);
     analytics.add('error-code', error.code);
@@ -67,7 +79,7 @@ async function handleError(args, error) {
   });
 
   if (args.options.debug) {
-    console.log(error.stack);
+    debug(error.stack);
   } else {
     if (!args.options.quiet) {
 
@@ -81,12 +93,11 @@ async function handleError(args, error) {
           const erase = ansiEscapes.eraseLines(4);
           process.stdout.write(erase);
         }
-        console.log(result);
+        console.error(result);
       }
     }
   }
-
-  return res;
+  return { res, exitCode };
 }
 
 function checkRuntime() {
@@ -94,7 +105,7 @@ function checkRuntime() {
     console.error(`${process.versions.node} is an unsupported nodejs ` +
       `runtime! Supported runtime range is '${runtime.supportedRange}'`);
     console.error('Please upgrade your nodejs runtime version and try again.');
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 }
 
@@ -113,9 +124,9 @@ async function main() {
   checkRuntime();
 
   const args = argsLib(process.argv);
-  let res = null;
+  let res;
   let failed = false;
-
+  let exitCode = EXIT_CODES.ERROR;
   try {
     if (args.options.file && args.options.file.match(/\.sln$/)) {
       sln.updateArgs(args);
@@ -124,23 +135,27 @@ async function main() {
     res = await runCommand(args);
   } catch (error) {
     failed = true;
-    res = await handleError(args, error);
+    const response = await handleError(args, error);
+    res = response.res;
+    exitCode = response.exitCode;
   }
 
   if (!args.options.json) {
-    console.log(alerts.displayAlerts());
+    debug(alerts.displayAlerts());
   }
 
   if (!process.env.TAP && failed) {
-    process.exit(1);
+    debug('Exit code: ' + exitCode);
+    process.exit(exitCode);
   }
 
   return res;
 }
 
 const cli = main().catch((e) => {
-  console.log('super fail', e.stack);
-  process.exit(1);
+  console.error('Something unexpected went wrong: ', e.stack);
+  console.error('Exit code: ' + EXIT_CODES.ERROR);
+  process.exit(EXIT_CODES.ERROR);
 });
 
 if (module.parent) {
