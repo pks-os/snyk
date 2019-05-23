@@ -50,13 +50,12 @@ export function monitor(root, meta, info: SingleDepRootResult, targetFile): Prom
     .filter(Boolean);
   const opts = {loose: true};
   const packageManager = meta.packageManager || 'npm';
-  return apiTokenExists()
-    .then(() => {
-      if (policyLocations.length === 0) {
-        return snyk.policy.create();
-      }
-      return snyk.policy.load(policyLocations, opts);
-    }).then(async (policy) => {
+  apiTokenExists();
+  if (policyLocations.length === 0) {
+    return snyk.policy.create();
+  }
+  return snyk.policy.load(policyLocations, opts)
+    .then(async (policy) => {
       analytics.add('packageManager', packageManager);
 
       const target = await projectMetadata.getInfo(pkg);

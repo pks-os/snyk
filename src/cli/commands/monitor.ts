@@ -73,7 +73,7 @@ async function monitor(...args0: any[]): Promise<any> {
   if (options['all-sub-projects'] && options['project-name']) {
     throw new Error('`--all-sub-projects` is currently not compatible with `--project-name`');
   }
-  await apiTokenExists();
+  apiTokenExists();
   // Part 1: every argument is a scan target; process them sequentially
   for (const path of args) {
     try {

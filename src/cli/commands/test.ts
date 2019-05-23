@@ -47,7 +47,7 @@ async function test(...args): Promise<string> {
     return Promise.reject(new Error('INVALID_SEVERITY_THRESHOLD'));
   }
 
-  await apiTokenExists();
+  apiTokenExists();
 
   // Promise waterfall to test all other paths sequentially
   for (const path of args) {
