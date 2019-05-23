@@ -1,5 +1,5 @@
 import * as snyk from '../lib';
-import {exists as apiTokenExists} from './api-token';
+import {apiTokenExists} from './api-token';
 import * as request from './request';
 import * as config from './config';
 import * as os from 'os';
@@ -50,7 +50,7 @@ export function monitor(root, meta, info: SingleDepRootResult, targetFile): Prom
     .filter(Boolean);
   const opts = {loose: true};
   const packageManager = meta.packageManager || 'npm';
-  return apiTokenExists('snyk monitor')
+  return apiTokenExists()
     .then(() => {
       if (policyLocations.length === 0) {
         return snyk.policy.create();
